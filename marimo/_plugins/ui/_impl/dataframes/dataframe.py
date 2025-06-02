@@ -21,6 +21,7 @@ from marimo._plugins.ui._impl.dataframes.transforms.apply import (
 )
 from marimo._plugins.ui._impl.dataframes.transforms.types import (
     DataFrameType,
+    Transform,
     Transformations,
 )
 from marimo._plugins.ui._impl.table import (
@@ -95,6 +96,8 @@ class dataframe(UIElement[dict[str, Any], DataFrameType]):
 
     Args:
         df (DataFrameType): The DataFrame or series to transform.
+        transformations (Optional[list[Transform]], optional): List of preset 
+            transformations to include. Defaults to None.
         page_size (Optional[int], optional): The number of rows to show in the table.
             Defaults to 5.
         limit (Optional[int], optional): The number of items to load into memory, in case
@@ -112,6 +115,7 @@ class dataframe(UIElement[dict[str, Any], DataFrameType]):
         on_change: Optional[Callable[[DataFrameType], None]] = None,
         page_size: Optional[int] = 5,
         limit: Optional[int] = None,
+        transformations: Optional[list[Transform]] = None,
     ) -> None:
         validate_no_integer_columns(df)
         # This will raise an error if the dataframe type is not supported.
@@ -141,15 +145,18 @@ class dataframe(UIElement[dict[str, Any], DataFrameType]):
             df, handler
         )
         self._error: Optional[str] = None
-        self._last_transforms = Transformations([])
+        
+        # Handle pre-existing transformations
+        transformations = transformations or []
+        self._last_transforms = Transformations(transformations)
+        initial_value = self._transformations_to_dict(self._last_transforms)
+        
         self._page_size = page_size or 5  # Default to 5 rows (.head())
         validate_page_size(self._page_size)
 
         super().__init__(
             component_name=dataframe._name,
-            initial_value={
-                "transforms": [],
-            },
+            initial_value=initial_value,
             on_change=on_change,
             label="",
             args={
@@ -176,6 +183,13 @@ class dataframe(UIElement[dict[str, Any], DataFrameType]):
                 ),
             ),
         )
+
+    def _transformations_to_dict(self, transformations: Transformations) -> dict[str, Any]:
+        """Convert Transformations to a dictionary for JSON serialization."""
+        return {
+            # Store an array of Transforms as dictionaries with 'type' value extracted
+            "transforms": [{**t.__dict__, "type": t.type.value} for t in transformations.transforms]
+        }
 
     def _get_column_types(self) -> list[list[Union[str, int]]]:
         return [
